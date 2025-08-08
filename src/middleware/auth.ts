@@ -24,7 +24,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
   }
 };
 
-export const authorizeRoles =
+export const authorize =
   (...allowedRoles: string[]) =>
   (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
