@@ -15,7 +15,7 @@ const config: Config = {
   mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/testschool',
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || 'access_secret',
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'refresh_secret',
-  accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m',
+  accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '1d',
   refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d',
 };
 
