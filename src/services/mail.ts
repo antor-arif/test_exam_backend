@@ -20,18 +20,30 @@ export async function sendOtpEmail(email: string, otp: string) {
   return transporter.sendMail(mail);
 }
 
-export async function sendCertificateEmail(email: string, pdfBuffer: Buffer, fileName = "certificate.pdf") {
-  const mail = {
+export async function sendCertificateEmail(
+  email: string, 
+  pdfBuffer: Buffer, 
+  fileName = "certificate.pdf",
+  certificateHtml?: string
+) {
+  const mailOptions: any = {
     from: process.env.EMAIL_USER,
     to: email,
     subject: "Your Test_School Certificate",
-    text: "Congratulations on completing the test. Your certificate is attached.",
     attachments: [
       {
         filename: fileName,
-        content: pdfBuffer
+        content: pdfBuffer,
+        contentType: 'application/pdf'
       }
     ]
   };
-  return transporter.sendMail(mail);
+
+  if (certificateHtml) {
+    mailOptions.html = certificateHtml;
+  } else {
+    mailOptions.text = "Congratulations on completing the test. Your certificate is attached.";
+  }
+
+  return transporter.sendMail(mailOptions);
 }

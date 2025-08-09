@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import Question, { IQuestionDoc } from "../models/question";
 import Result from "../models/result";
 import { calculateScoreForStep } from "../utils/scoring";
-import { generateCertificatePDF } from "../services/pdf";
+import { generateCertificatePDF, generateCertificateHtml } from "../services/pdf";
 import { sendCertificateEmail } from "../services/mail";
 import mongoose from "mongoose";
 import { PipelineStage } from "mongoose";
@@ -70,32 +70,55 @@ export const submitAnswers = async (req: Request, res: Response) => {
 
   const scoreResult = calculateScoreForStep(stepNum, correct, answers?.length || 44);
 
+ 
+  const shouldGenerateCertificate = scoreResult.levelAwarded !== "Fail" && scoreResult.levelAwarded !== "Unknown";
+  let certificateId = null;
+  let certificateUrl = null;
+  let certificateHtml = null;
+  
+  if (shouldGenerateCertificate) {
+    certificateId = `CERT-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString().substring(9)}`;
+    
+    certificateUrl = `/view-certificate/${certificateId}`;
+    
+    certificateHtml = generateCertificateHtml(user.name, scoreResult.levelAwarded, certificateId);
+  }
 
   const result = await Result.create({
     user: user._id,
     step: stepNum,
     score: scoreResult.percentage,
     levelAwarded: scoreResult.levelAwarded,
-    quizId: new mongoose.Types.ObjectId(quizId)
+    quizId: new mongoose.Types.ObjectId(quizId),
+    certificateId,
+    certificateUrl,
+    certificateHtml
   });
 
   let certificateBuffer: Buffer | null = null;
-  const shouldGenerateCertificate = scoreResult.levelAwarded !== "Fail" && scoreResult.levelAwarded !== "Unknown";
-
-  if (shouldGenerateCertificate) {
-    certificateBuffer = await generateCertificatePDF(user.name, scoreResult.levelAwarded);
+  
+  if (shouldGenerateCertificate && certificateId) {
+    certificateBuffer = await generateCertificatePDF(user.name, scoreResult.levelAwarded, certificateId);
     try {
-      await sendCertificateEmail(user.email, certificateBuffer, `certificate_${user._id}.pdf`);
+      await sendCertificateEmail(
+        user.email, 
+        certificateBuffer, 
+        `certificate_${certificateId}.pdf`,
+        certificateHtml || undefined
+      );
     } catch (err) {
       console.warn("send certificate email failed", err);
     }
   }
 
   res.json({
-    result,
-    proceed: scoreResult.proceed,
-    certificateSent: !!certificateBuffer,
-    certificateUrl: null 
+    success: true,
+
+      result,
+      proceed: scoreResult.proceed,
+      certificateSent: !!certificateBuffer,
+      certificateId,
+      certificateUrl
   });
 };
 
@@ -124,7 +147,10 @@ export const getUserCertificates = async (req: Request, res: Response) => {
       level: result.levelAwarded,
       score: result.score,
       date: result.createdAt,
-      step: result.step
+      step: result.step,
+      certificateId: result.certificateId,
+      certificateUrl: result.certificateUrl,
+      viewUrl: result.certificateId ? `/quiz/certificates/${result.certificateId}/view` : null
     }));
     
     res.status(200).json({
@@ -165,14 +191,114 @@ export const downloadCertificate = async (req: Request, res: Response) => {
       });
     }
     
-    const certificateBuffer = await generateCertificatePDF(user.name, result.levelAwarded);
+    const certificateBuffer = await generateCertificatePDF(
+      (user as any).name, 
+      result.levelAwarded, 
+      result.certificateId
+    );
     
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=certificate_${user._id}_${result._id}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=certificate_${result.certificateId || result._id}.pdf`);
     
     res.send(certificateBuffer);
   } catch (error) {
     console.error('Error downloading certificate:', error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+export const viewCertificateHtml = async (req: Request, res: Response) => {
+  const { certificateId } = req.params;
+  
+  try {
+    const result = await Result.findOne({ certificateId }).populate('user', 'name');
+    
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Certificate not found"
+      });
+    }
+    
+    if (result.certificateHtml) {
+      res.setHeader('Content-Type', 'text/html');
+      return res.send(result.certificateHtml);
+    }
+    
+    const userName = (result.user as any)?.name || 'Student';
+    const html = generateCertificateHtml(userName, result.levelAwarded, result.certificateId);
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    console.error('Error viewing certificate HTML:', error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+export const getUserResults = async (req: Request, res: Response) => {
+  const user = req?.user;
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const quizId = req.query.quizId as string;
+  const level = req.query.level as string;
+  const skip = (page - 1) * limit;
+  
+  try {
+    
+    const query: any = { user: user._id };
+    
+    if (quizId) {
+      query.quizId = new mongoose.Types.ObjectId(quizId);
+    }
+    
+    if (level) {
+      query.levelAwarded = level;
+    }
+    
+    const [results, total] = await Promise.all([
+      Result.find(query)
+        .populate('quizId', 'name niche totalQuestions')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Result.countDocuments(query)
+    ]);
+    
+    const formattedResults = results.map(result => ({
+      id: result._id,
+      quiz: result.quizId ? {
+        id: (result.quizId as any)._id,
+        name: (result.quizId as any).name,
+        niche: (result.quizId as any).niche
+      } : null,
+      step: result.step,
+      score: result.score,
+      levelAwarded: result.levelAwarded,
+      hasCertificate: result.levelAwarded !== "Fail" && result.levelAwarded !== "Unknown",
+      certificateId: result.certificateId,
+      certificateUrl: result.certificateUrl,
+      date: result.createdAt
+    }));
+    
+    res.status(200).json({
+      success: true,
+      data: formattedResults,
+      meta: {
+        page,
+        limit,
+        totalResults: total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user results:', error);
     res.status(500).json({
       success: false,
       message: "Internal server error"
