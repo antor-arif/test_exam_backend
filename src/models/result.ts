@@ -5,6 +5,7 @@ export interface IResultDoc extends Document {
   step: number;
   score: number;
   levelAwarded: string;
+  quizId?: mongoose.Types.ObjectId | string; 
 }
 
 const ResultSchema = new Schema<IResultDoc>(
@@ -12,7 +13,8 @@ const ResultSchema = new Schema<IResultDoc>(
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     step: { type: Number, required: true },
     score: { type: Number, required: true },
-    levelAwarded: { type: String, required: true }
+    levelAwarded: { type: String, required: true },
+    quizId: { type: Schema.Types.ObjectId, ref: "Quiz" }
   },
   { timestamps: true }
 );

@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, Types } from "mongoose";
 
 export interface IOption {
   key: string;
@@ -6,6 +6,7 @@ export interface IOption {
 }
 
 export interface IQuestionDoc extends Document {
+  quizId: Types.ObjectId;
   competency: string;
   level: string; 
   text: string;
@@ -23,6 +24,7 @@ const OptionSchema = new Schema(
 
 const QuestionSchema = new Schema<IQuestionDoc>(
   {
+    quizId: { type: mongoose.Schema.Types.ObjectId, ref: "Quiz", required: true },
     competency: { type: String, required: true },
     level: { type: String, required: true },
     text: { type: String, required: true },
