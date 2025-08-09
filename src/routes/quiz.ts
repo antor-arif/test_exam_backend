@@ -6,9 +6,9 @@ import { getAllQuizzes } from "../controllers/admin";
 const router = Router();
 
 
-router.get("/step/:step/questions", authenticate, getQuestionsForStep);
-router.post("/step/:step/submit", authenticate, submitAnswers);
-router.get("/quizzes",authenticate, getAllQuizzes);
+router.get("/:quizId/step/:step/questions", authenticate, getQuestionsForStep);
+router.post("/:quizId/step/:step/submit", authenticate, submitAnswers);
+router.get("/quizzes", authenticate, getAllQuizzes);
 
 
 export default router;

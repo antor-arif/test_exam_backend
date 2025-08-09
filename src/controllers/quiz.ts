@@ -15,12 +15,13 @@ const STEP_LEVELS: Record<number, string[]> = {
 
 export const getQuestionsForStep = async (req: Request, res: Response) => {
   const step = Number(req.params.step);
+  const quizId = req.params.quizId;
   if (![1, 2, 3].includes(step)) return res.status(400).json({ message: "Invalid step" });
 
   const levels = STEP_LEVELS[step];
 
   const pipeline = [
-    { $match: { level: { $in: levels } } },
+    { $match: { level: { $in: levels }, quizId: new mongoose.Types.ObjectId(quizId) } },
     { $sample: { size: 44 } },
     {
       $project: {
@@ -37,7 +38,7 @@ export const getQuestionsForStep = async (req: Request, res: Response) => {
 
 export const submitAnswers = async (req: Request, res: Response) => {
   const user = req?.user;
-  const { step } = req.params;
+  const { step, quizId } = req.params;
   const stepNum = Number(step);
   const answers: { questionId: string; selectedKey: string }[] = req.body.answers;
 
@@ -67,7 +68,8 @@ export const submitAnswers = async (req: Request, res: Response) => {
     user: user._id,
     step: stepNum,
     score: scoreResult.percentage,
-    levelAwarded: scoreResult.levelAwarded
+    levelAwarded: scoreResult.levelAwarded,
+    quizId: new mongoose.Types.ObjectId(quizId)
   });
 
   let certificateBuffer: Buffer | null = null;
