@@ -168,12 +168,11 @@ export const getUserCertificates = async (req: Request, res: Response) => {
 
 export const downloadCertificate = async (req: Request, res: Response) => {
   const user = req?.user;
-  const { resultId } = req.params;
-  
+  const { certificateId } = req.params;
+
   try {
-    
     const result = await Result.findOne({
-      _id: resultId,
+      certificateId: certificateId,
       user: user._id
     });
     

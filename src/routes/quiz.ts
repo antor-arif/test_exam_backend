@@ -21,7 +21,7 @@ router.get("/quizzes/:quizId", authenticate, getQuiz);
 
 // Certificate routes
 router.get("/certificates", authenticate, getUserCertificates);
-router.get("/certificates/:resultId/download", authenticate, downloadCertificate);
+router.get("/certificates/:certificateId/download", authenticate, downloadCertificate);
 router.get("/certificates/:certificateId/view", viewCertificateHtml); 
 router.get("/results", authenticate, getUserResults);
 
